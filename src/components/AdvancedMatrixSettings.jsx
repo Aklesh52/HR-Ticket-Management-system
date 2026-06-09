@@ -1,10 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { ROLE_MATRIX as DEFAULT } from '../config/roleMatrix'
 
-const ROLE_MATRIX_KEY = 'hr_role_matrix'
-const CUSTOM_ITEMS_KEY = 'hr_ticket_custom_items'
-const DEPARTMENT_EMAILS_KEY = 'hr_ticket_department_emails'
-
 const DEFAULT_CUSTOM_ITEMS = [
   { name: 'Laptop', department: 'IT', category: 'Hardware' },
   { name: 'Access', department: 'IT', category: 'Software' },
@@ -23,52 +19,25 @@ const DEFAULT_DEPARTMENT_EMAILS = {
   "Onboarding Matrix": 'onboarding.matrix@example.com',
 }
 
-function loadMatrix() {
-  try {
-    const raw = localStorage.getItem(ROLE_MATRIX_KEY)
-    return raw ? JSON.parse(raw) : DEFAULT
-  } catch {
-    return DEFAULT
-  }
-}
+export default function AdvancedMatrixSettings({ onSave, initialMatrix, initialCustomItems, initialDepartmentEmails, onSaveCustomItems, onSaveDepartmentEmails }) {
+  const [matrix, setMatrix] = useState(initialMatrix || DEFAULT)
+  const [customItems, setCustomItems] = useState(initialCustomItems || DEFAULT_CUSTOM_ITEMS)
+  const [departmentEmails, setDepartmentEmails] = useState(initialDepartmentEmails || DEFAULT_DEPARTMENT_EMAILS)
 
-function loadCustomItems() {
-  try {
-    const raw = localStorage.getItem(CUSTOM_ITEMS_KEY)
-    return raw ? JSON.parse(raw) : DEFAULT_CUSTOM_ITEMS
-  } catch {
-    return DEFAULT_CUSTOM_ITEMS
-  }
-}
+  useEffect(() => { if (initialMatrix) setMatrix(initialMatrix) }, [initialMatrix])
+  useEffect(() => { if (initialCustomItems) setCustomItems(initialCustomItems) }, [initialCustomItems])
+  useEffect(() => { if (initialDepartmentEmails) setDepartmentEmails(initialDepartmentEmails) }, [initialDepartmentEmails])
 
-function loadDepartmentEmails() {
-  try {
-    const raw = localStorage.getItem(DEPARTMENT_EMAILS_KEY)
-    return raw ? JSON.parse(raw) : DEFAULT_DEPARTMENT_EMAILS
-  } catch {
-    return DEFAULT_DEPARTMENT_EMAILS
-  }
-}
-
-export default function AdvancedMatrixSettings({ onSave }) {
-  const [matrix, setMatrix] = useState(loadMatrix())
-  const [customItems, setCustomItems] = useState(loadCustomItems())
-  const [departmentEmails, setDepartmentEmails] = useState(loadDepartmentEmails())
-  
-  // Dynamic Item Fields
   const [newItemName, setNewItemName] = useState('')
   const [newItemDept, setNewItemDept] = useState('IT')
 
-  // New Grade Fields
   const [selectedGrade, setSelectedGrade] = useState('RL5')
   const [newGradeId, setNewGradeId] = useState('')
   const [newGradeLabel, setNewGradeLabel] = useState('')
 
-  // Department Email Fields
   const [selectedEmailDept, setSelectedEmailDept] = useState('IT')
   const [newEmail, setNewEmail] = useState('')
 
-  // JSON view toggle
   const [showRawJson, setShowRawJson] = useState(false)
   const [rawText, setRawText] = useState('')
   const [error, setError] = useState('')
@@ -77,18 +46,15 @@ export default function AdvancedMatrixSettings({ onSave }) {
     setRawText(JSON.stringify(matrix, null, 2))
   }, [matrix])
 
-  // Save changes
   const updateMatrix = (newMatrix) => {
     setMatrix(newMatrix)
-    localStorage.setItem(ROLE_MATRIX_KEY, JSON.stringify(newMatrix))
     if (onSave) onSave(newMatrix)
   }
 
-  // Dynamic Item Management
   const handleAddCustomItem = (e) => {
     e.preventDefault()
     if (!newItemName.trim()) return
-    
+
     const name = newItemName.trim()
     if (customItems.some(item => item.name.toLowerCase() === name.toLowerCase() && item.department === newItemDept)) {
       setError(`"${name}" is already assigned to the ${newItemDept} department.`)
@@ -97,7 +63,7 @@ export default function AdvancedMatrixSettings({ onSave }) {
 
     const updatedItems = [...customItems, { name, department: newItemDept }]
     setCustomItems(updatedItems)
-    localStorage.setItem(CUSTOM_ITEMS_KEY, JSON.stringify(updatedItems))
+    if (onSaveCustomItems) onSaveCustomItems(updatedItems)
     setNewItemName('')
     setError('')
   }
@@ -105,10 +71,9 @@ export default function AdvancedMatrixSettings({ onSave }) {
   const handleRemoveCustomItem = (name, dept) => {
     const updatedItems = customItems.filter(item => !(item.name === name && item.department === dept))
     setCustomItems(updatedItems)
-    localStorage.setItem(CUSTOM_ITEMS_KEY, JSON.stringify(updatedItems))
+    if (onSaveCustomItems) onSaveCustomItems(updatedItems)
   }
 
-  // Add a new grade
   const handleCreateGrade = (e) => {
     e.preventDefault()
     const id = newGradeId.trim().toUpperCase()
@@ -136,7 +101,6 @@ export default function AdvancedMatrixSettings({ onSave }) {
     setError('')
   }
 
-  // Delete a grade
   const handleDeleteGrade = (gradeId) => {
     if (Object.keys(matrix).length <= 1) {
       setError('You must keep at least one grade in the matrix.')
@@ -145,18 +109,16 @@ export default function AdvancedMatrixSettings({ onSave }) {
     const updatedMatrix = { ...matrix }
     delete updatedMatrix[gradeId]
     updateMatrix(updatedMatrix)
-    // Select first remaining grade
     setSelectedGrade(Object.keys(updatedMatrix)[0])
     setError('')
   }
 
-  // Toggle item checkbox inside a grade
   const handleToggleItem = (gradeId, dept, itemName) => {
     const currentGradeData = matrix[gradeId] || { label: gradeId, required: [] }
     const requirements = [...currentGradeData.required]
-    
+
     const deptReqIndex = requirements.findIndex(r => r.department === dept)
-    
+
     if (deptReqIndex > -1) {
       const deptReq = { ...requirements[deptReqIndex] }
       let items = [...deptReq.items]
@@ -165,20 +127,18 @@ export default function AdvancedMatrixSettings({ onSave }) {
       } else {
         items.push(itemName)
       }
-      
+
       if (items.length === 0) {
-        // Remove department entirely if no items checked
         requirements.splice(deptReqIndex, 1)
       } else {
         deptReq.items = items
         requirements[deptReqIndex] = deptReq
       }
     } else {
-      // Create new department entry
       requirements.push({
         department: dept,
         items: [itemName],
-        tatDays: 3 // default TAT
+        tatDays: 3
       })
     }
 
@@ -192,14 +152,12 @@ export default function AdvancedMatrixSettings({ onSave }) {
     updateMatrix(updatedMatrix)
   }
 
-  // Edit TAT for a department in a grade
   const handleUpdateTAT = (gradeId, dept, tatVal) => {
     const currentGradeData = matrix[gradeId]
     if (!currentGradeData) return
 
     const requirements = [...currentGradeData.required]
     const deptReqIndex = requirements.findIndex(r => r.department === dept)
-
     const parsedTAT = parseInt(tatVal, 10) || 1
 
     if (deptReqIndex > -1) {
@@ -225,7 +183,6 @@ export default function AdvancedMatrixSettings({ onSave }) {
     updateMatrix(updatedMatrix)
   }
 
-  // Department Email Management
   const handleUpdateDepartmentEmail = (e) => {
     e.preventDefault()
     if (!newEmail.trim()) return
@@ -235,12 +192,11 @@ export default function AdvancedMatrixSettings({ onSave }) {
       [selectedEmailDept]: newEmail.trim(),
     }
     setDepartmentEmails(updatedEmails)
-    localStorage.setItem(DEPARTMENT_EMAILS_KEY, JSON.stringify(updatedEmails))
+    if (onSaveDepartmentEmails) onSaveDepartmentEmails(updatedEmails)
     setNewEmail('')
     setError('')
   }
 
-  // Save JSON manually
   const handleSaveRaw = () => {
     try {
       const parsed = JSON.parse(rawText)
@@ -255,9 +211,9 @@ export default function AdvancedMatrixSettings({ onSave }) {
     if (window.confirm('Are you sure you want to restore defaults? All custom configurations will be replaced.')) {
       updateMatrix(DEFAULT)
       setCustomItems(DEFAULT_CUSTOM_ITEMS)
-      localStorage.setItem(CUSTOM_ITEMS_KEY, JSON.stringify(DEFAULT_CUSTOM_ITEMS))
+      if (onSaveCustomItems) onSaveCustomItems(DEFAULT_CUSTOM_ITEMS)
       setDepartmentEmails(DEFAULT_DEPARTMENT_EMAILS)
-      localStorage.setItem(DEPARTMENT_EMAILS_KEY, JSON.stringify(DEFAULT_DEPARTMENT_EMAILS))
+      if (onSaveDepartmentEmails) onSaveDepartmentEmails(DEFAULT_DEPARTMENT_EMAILS)
       setSelectedGrade('RL5')
       setError('')
     }
@@ -275,9 +231,8 @@ export default function AdvancedMatrixSettings({ onSave }) {
         </div>
       )}
 
-      {/* Grid container for management & mapping split */}
       <div className="grid gap-8 lg:grid-cols-12">
-        
+
         {/* Dynamic Asset/Item Manager Column */}
         <div className="lg:col-span-4 space-y-6">
           <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -351,7 +306,7 @@ export default function AdvancedMatrixSettings({ onSave }) {
           <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
             <h3 className="text-lg font-bold text-slate-900">Add New Grade</h3>
             <p className="text-sm text-slate-500 mt-1">Add a level / grade to include in onboarding.</p>
-            
+
             <form onSubmit={handleCreateGrade} className="mt-4 space-y-3">
               <input
                 value={newGradeId}
@@ -445,7 +400,6 @@ export default function AdvancedMatrixSettings({ onSave }) {
                 <p className="mt-1 text-sm text-slate-500">Configure requirements dynamically for selected employee grades.</p>
               </div>
 
-              {/* Grade Selector */}
               <div className="flex items-center gap-2">
                 <select
                   value={selectedGrade}
@@ -466,7 +420,6 @@ export default function AdvancedMatrixSettings({ onSave }) {
               </div>
             </div>
 
-            {/* Matrix Visual Grid Builder */}
             <div className="mt-6">
               <h4 className="text-sm font-bold text-slate-900 mb-4">
                 Requirement Mapping for <span className="text-indigo-600 font-extrabold">{activeGradeData.label}</span>
@@ -480,11 +433,9 @@ export default function AdvancedMatrixSettings({ onSave }) {
                   return (
                     <div key={dept} className="rounded-2xl border border-slate-200 p-5 bg-white shadow-sm flex flex-col justify-between">
                       <div>
-                        {/* Dept Header & TAT SLA */}
                         <div className="flex justify-between items-center mb-4">
                           <span className="text-base font-extrabold text-slate-900">{dept} SLA</span>
-                          
-                          {/* SLA / TAT Control */}
+
                           <div className="flex items-center gap-2 bg-slate-50 border border-slate-150 px-2.5 py-1.5 rounded-xl">
                             <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">SLA TAT:</span>
                             <input
@@ -498,7 +449,6 @@ export default function AdvancedMatrixSettings({ onSave }) {
                           </div>
                         </div>
 
-                        {/* Items checkboxes */}
                         <div className="space-y-2 mt-2">
                           {deptItems.length === 0 ? (
                             <p className="text-xs italic text-slate-400">No items configured under {dept}. Add some on the left.</p>
@@ -521,7 +471,6 @@ export default function AdvancedMatrixSettings({ onSave }) {
                         </div>
                       </div>
 
-                      {/* Summary indicator */}
                       <div className="mt-4 pt-3 border-t border-slate-100 flex justify-between text-xs text-slate-500">
                         <span>Items checked:</span>
                         <span className="font-semibold text-indigo-600">{deptReq.items?.length || 0} active</span>

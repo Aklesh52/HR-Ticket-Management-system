@@ -1,26 +1,26 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useCallback } from 'react'
 import RoleMatrix from './components/RoleMatrix'
 import Reports from './components/Reports'
 import DepartmentSettings from './components/DepartmentSettings'
 import ToastList from './components/ToastList'
 import AdvancedMatrixSettings from './components/AdvancedMatrixSettings'
 import { ROLE_MATRIX } from './config/roleMatrix'
+import {
+  fetchParentTickets, insertParentTicket, insertChildTicketsBulk,
+  updateParentStatus, updateParentChildren,
+  fetchChildTickets, updateChildStatus, escalateChildTicket,
+  fetchDepartments, upsertDepartment, deleteDepartment,
+  fetchRoleMatrix, updateRoleMatrix as saveRoleMatrix,
+  fetchConfig, updateConfig,
+  subscribeToParentTickets, subscribeToChildTickets,
+} from './lib/supabase'
 
-const TICKETS_KEY = 'hr_tickets'
-const CHILD_KEY = 'hr_child_tickets'
-const DEPT_KEY = 'hr_departments'
 const SESSION_KEY = 'hr_session'
 const TIME_KEY = 'hr_time_offset'
-const MATRIX_KEY = 'hr_role_matrix'
 const CATEGORIES = ['IT', 'Payroll', 'Leave', 'Onboarding']
 const STATUSES = ['All', 'Open', 'In Progress', 'Done', 'Rejected', 'Resolved']
 const CLOSED = ['Done', 'Rejected', 'Resolved']
 const PAGE_SIZE = 10
-
-function loadJSON(key, fallback) {
-  try { const r = localStorage.getItem(key); return r ? JSON.parse(r) : fallback } catch { return fallback }
-}
-function saveJSON(key, data) { localStorage.setItem(key, JSON.stringify(data)) }
 
 function CollapsibleTicket({ ticket, isClosed, children }) {
   const [open, setOpen] = useState(!isClosed)
@@ -110,12 +110,19 @@ function TimelineStep({ child, getNow }) {
 }
 
 export default function App() {
-  const [role, setRole] = useState(() => loadJSON(SESSION_KEY, { role: '' }).role || '')
-  const [departmentId, setDepartmentId] = useState(() => loadJSON(SESSION_KEY, { role: '' }).departmentId || '')
+  const [role, setRole] = useState(() => {
+    try { const r = localStorage.getItem(SESSION_KEY); return r ? JSON.parse(r).role || '' : '' } catch { return '' }
+  })
+  const [departmentId, setDepartmentId] = useState(() => {
+    try { const r = localStorage.getItem(SESSION_KEY); return r ? JSON.parse(r).departmentId || '' : '' } catch { return '' }
+  })
   const [tickets, setTickets] = useState([])
   const [childTickets, setChildTickets] = useState([])
-  const [departments, setDepartments] = useState(() => loadJSON(DEPT_KEY, []))
-  const [roleMatrix, setRoleMatrix] = useState(() => loadJSON(MATRIX_KEY, ROLE_MATRIX))
+  const [departments, setDepartments] = useState([])
+  const [roleMatrix, setRoleMatrix] = useState(ROLE_MATRIX)
+  const [customItems, setCustomItems] = useState([])
+  const [departmentEmails, setDepartmentEmails] = useState({})
+  const [loading, setLoading] = useState(true)
 
   const [title, setTitle] = useState('')
   const [category, setCategory] = useState('IT')
@@ -141,9 +148,7 @@ export default function App() {
   const fontScale = { small: 'text-xs md:text-sm leading-tight', medium: 'text-sm md:text-base leading-normal', large: 'text-base md:text-lg leading-relaxed' }
 
   useEffect(() => { localStorage.setItem('hr_theme', theme); localStorage.setItem('hr_font', fontSize) }, [theme, fontSize])
-  useEffect(() => { setTickets(loadJSON(TICKETS_KEY, [])); setChildTickets(loadJSON(CHILD_KEY, [])) }, [])
-  useEffect(() => { saveJSON(SESSION_KEY, { role, departmentId }) }, [role, departmentId])
-  useEffect(() => { saveJSON(MATRIX_KEY, roleMatrix) }, [roleMatrix])
+  useEffect(() => { localStorage.setItem(SESSION_KEY, JSON.stringify({ role, departmentId })) }, [role, departmentId])
 
   const deptName = useMemo(() => departments.find(d => d.id === departmentId)?.name || '', [departments, departmentId])
   const currentActor = role === 'admin' ? 'HR Admin' : role === 'employee' ? 'Employee' : deptName || 'Department'
@@ -170,6 +175,59 @@ export default function App() {
     return name
   }
 
+  // ─── Initial Data Load from Supabase ──────────────────────────────────────
+  useEffect(() => {
+    const loadAll = async () => {
+      setLoading(true)
+      const [p, c, d, m, ci, de] = await Promise.all([
+        fetchParentTickets(),
+        fetchChildTickets(),
+        fetchDepartments(),
+        fetchRoleMatrix(),
+        fetchConfig('custom_items'),
+        fetchConfig('department_emails'),
+      ])
+      setTickets(p)
+      setChildTickets(c)
+      setDepartments(d)
+      if (m) setRoleMatrix(m)
+      if (ci) setCustomItems(ci)
+      if (de) setDepartmentEmails(de)
+      setLoading(false)
+    }
+    loadAll()
+  }, [])
+
+  // ─── Realtime Subscriptions ───────────────────────────────────────────────
+  useEffect(() => {
+    const parentSub = subscribeToParentTickets((payload) => {
+      if (payload.eventType === 'INSERT') {
+        setTickets(prev => {
+          if (prev.some(t => t.id === payload.new.id)) return prev
+          return [payload.new, ...prev]
+        })
+      } else if (payload.eventType === 'UPDATE') {
+        setTickets(prev => prev.map(t => t.id === payload.new.id ? payload.new : t))
+      } else if (payload.eventType === 'DELETE') {
+        setTickets(prev => prev.filter(t => t.id !== payload.old.id))
+      }
+    })
+    const childSub = subscribeToChildTickets((payload) => {
+      if (payload.eventType === 'INSERT') {
+        setChildTickets(prev => {
+          if (prev.some(t => t.id === payload.new.id)) return prev
+          return [payload.new, ...prev]
+        })
+      } else if (payload.eventType === 'UPDATE') {
+        setChildTickets(prev => prev.map(t => t.id === payload.new.id ? payload.new : t))
+      } else if (payload.eventType === 'DELETE') {
+        setChildTickets(prev => prev.filter(t => t.id !== payload.old.id))
+      }
+    })
+    return () => { parentSub.unsubscribe(); childSub.unsubscribe() }
+  }, [])
+
+  // ─── Auth Handlers ────────────────────────────────────────────────────────
   const handleLogin = (nextRole) => { setRole(nextRole); setActiveView('dashboard'); setMessage(''); setError(''); setSearchQuery(''); setCurrentPage(1); setSelectedTicket(null) }
   const handleDepartmentLogin = (e) => {
     e.preventDefault()
@@ -179,25 +237,37 @@ export default function App() {
   }
   const handleLogout = () => { setRole(''); setDepartmentId(''); setMessage(''); setError(''); setActiveView('dashboard'); setSelectedTicket(null) }
 
-  const saveDepartment = (dept) => {
+  // ─── Department CRUD (Supabase) ───────────────────────────────────────────
+  const saveDepartment = async (dept) => {
     if (departments.some(d => d.username === dept.username)) { setError('Username already exists.'); setMessage(''); return }
-    const next = [...departments, { ...dept, id: Date.now().toString(), createdAt: new Date().toISOString() }]
-    setDepartments(next); saveJSON(DEPT_KEY, next); setError(''); setMessage('Department onboarded.')
+    const newDept = { ...dept, id: Date.now().toString(), createdAt: new Date().toISOString() }
+    const ok = await upsertDepartment(newDept)
+    if (ok) {
+      setDepartments(prev => [...prev, newDept])
+      setError(''); setMessage('Department onboarded.')
+    } else {
+      setError('Failed to save department to cloud.'); setMessage('')
+    }
   }
-  const removeDepartment = (id) => {
-    const next = departments.filter(d => d.id !== id); setDepartments(next); saveJSON(DEPT_KEY, next); setMessage('Department removed.'); setError('')
+  const removeDepartment = async (id) => {
+    const ok = await deleteDepartment(id)
+    if (ok) {
+      setDepartments(prev => prev.filter(d => d.id !== id))
+      setMessage('Department removed.'); setError('')
+    } else {
+      setError('Failed to remove department from cloud.'); setMessage('')
+    }
   }
 
-  const handleSubmitTicket = (e) => {
+  // ─── Ticket Creation (Supabase) ───────────────────────────────────────────
+  const handleSubmitTicket = async (e) => {
     e.preventDefault()
     if (!title.trim() || !description.trim()) { setError('Title and description required.'); setMessage(''); return }
     const baseId = Date.now().toString()
-    const newTicket = { id: baseId, title: title.trim(), category, description: description.trim(), status: 'Open', createdAt: new Date().toISOString(), createdBy: 'employee', type: 'single' }
-    let nextTickets = [newTicket, ...tickets]
+    const now = new Date().toISOString()
 
     if (category === 'Onboarding' && selectedGrade && roleMatrix[selectedGrade]) {
       const matrix = roleMatrix[selectedGrade]
-      const now = new Date().toISOString()
       const parent = { id: baseId + '-P', title: title.trim(), category: 'Onboarding', description: description.trim(), status: 'Open', createdAt: now, createdBy: 'employee', type: 'parent', grade: selectedGrade, children: [], auditTrail: [{ time: now, actor: 'HRBP', action: 'Created', remark: '' }] }
       const children = matrix.required.map((r, idx) => {
         const childId = `${baseId}-C${idx + 1}`
@@ -205,32 +275,59 @@ export default function App() {
         return { id: childId, parentId: parent.id, title: `${parent.title} — ${r.department} tasks`, category: r.department, department: r.department, departmentName: r.department, items: r.items, status: 'Received', createdAt: now, dueDate: due.toISOString(), tatDays: r.tatDays || 1, createdBy: 'HRBP', type: 'child', escalated: false, auditTrail: [{ time: now, actor: 'HRBP', action: 'Created', remark: '' }] }
       })
       parent.children = children.map(c => c.id)
-      nextTickets = [parent, ...tickets]
-      const nextChild = [...children, ...childTickets]; setChildTickets(nextChild); saveJSON(CHILD_KEY, nextChild)
-      children.forEach(child => {
-        const dObj = departments.find(d => resolveDeptKey(d) === child.department.toLowerCase())
-        addNotification(`Email sent to ${dObj?.primaryEmail || child.department}: Ticket ${child.id} raised`)
-      })
+
+      const pOk = await insertParentTicket(parent)
+      const cOk = await insertChildTicketsBulk(children)
+      if (pOk && cOk) {
+        setTickets(prev => [parent, ...prev])
+        setChildTickets(prev => [...children, ...prev])
+        children.forEach(child => {
+          const dObj = departments.find(d => resolveDeptKey(d) === child.department.toLowerCase())
+          addNotification(`Email sent to ${dObj?.primaryEmail || child.department}: Ticket ${child.id} raised`)
+        })
+      } else {
+        setError('Failed to save ticket to cloud.'); return
+      }
+    } else {
+      const newTicket = { id: baseId, title: title.trim(), category, description: description.trim(), status: 'Open', createdAt: now, createdBy: 'employee', type: 'single' }
+      const ok = await insertParentTicket(newTicket)
+      if (ok) {
+        setTickets(prev => [newTicket, ...prev])
+      } else {
+        setError('Failed to save ticket to cloud.'); return
+      }
     }
-    setTickets(nextTickets); saveJSON(TICKETS_KEY, nextTickets)
     setTitle(''); setCategory('IT'); setDescription(''); setSelectedGrade(''); setError(''); setMessage('Ticket submitted successfully.')
   }
 
-  const updateTicketStatus = (id, nextStatus, remark = '') => {
-    let nextTickets = tickets.map(t => t.id === id ? appendAudit({ ...t, status: nextStatus }, nextStatus, currentActor, remark) : t)
-    let nextChild = childTickets.map(t => t.id === id ? appendAudit({ ...t, status: nextStatus }, nextStatus, currentActor, remark) : t)
-    const changed = nextChild.find(t => t.id === id)
-    if (changed?.type === 'child') {
-      const parent = nextTickets.find(t => t.id === changed.parentId)
+  // ─── Ticket Status Update (Supabase) ──────────────────────────────────────
+  const updateTicketStatus = async (id, nextStatus, remark = '') => {
+    const auditEntry = { time: new Date().toISOString(), actor: currentActor, action: nextStatus, remark }
+    const now = new Date().toISOString()
+
+    // Update child ticket
+    const childUpdated = childTickets.find(t => t.id === id)
+    if (childUpdated) {
+      await updateChildStatus(id, nextStatus, auditEntry)
+      const nextChild = childTickets.map(t => t.id === id ? appendAudit({ ...t, status: nextStatus }, nextStatus, currentActor, remark) : t)
+
+      // Check if all siblings are closed → auto-resolve parent
+      const parent = tickets.find(t => t.id === childUpdated.parentId)
       if (parent) {
         const siblings = nextChild.filter(t => t.parentId === parent.id)
         if (siblings.every(s => CLOSED.includes(s.status)) && parent.status !== 'Resolved') {
-          nextTickets = nextTickets.map(t => t.id === parent.id ? appendAudit({ ...t, status: 'Resolved' }, 'Resolved', 'System', 'All child tickets closed') : t)
+          const parentAudit = { time: now, actor: 'System', action: 'Resolved', remark: 'All child tickets closed' }
+          await updateParentStatus(parent.id, 'Resolved', parentAudit)
+          setTickets(prev => prev.map(t => t.id === parent.id ? appendAudit({ ...t, status: 'Resolved' }, 'Resolved', 'System', 'All child tickets closed') : t))
           setMessage('All child tickets closed; parent auto-resolved.')
         }
       }
+      setChildTickets(nextChild)
+    } else {
+      // Update parent/single ticket
+      await updateParentStatus(id, nextStatus, auditEntry)
+      setTickets(prev => prev.map(t => t.id === id ? appendAudit({ ...t, status: nextStatus }, nextStatus, currentActor, remark) : t))
     }
-    setTickets(nextTickets); saveJSON(TICKETS_KEY, nextTickets); setChildTickets(nextChild); saveJSON(CHILD_KEY, nextChild)
     setMessage(`Ticket updated to ${nextStatus}.`); setError('')
   }
 
@@ -240,15 +337,32 @@ export default function App() {
     updateTicketStatus(ticketId, action, remark); setTicketRemarks(prev => ({ ...prev, [ticketId]: '' }))
   }
 
-  const forceEscalate = (id) => {
-    const nextChild = childTickets.map(t => t.id === id ? { ...t, escalated: true } : t)
-    setChildTickets(nextChild); saveJSON(CHILD_KEY, nextChild)
+  const forceEscalate = async (id) => {
+    await escalateChildTicket(id)
+    setChildTickets(prev => prev.map(t => t.id === id ? { ...t, escalated: true } : t))
     const ticket = childTickets.find(t => t.id === id)
     const dObj = departments.find(d => resolveDeptKey(d) === (ticket?.department || '').toLowerCase())
     if (dObj?.escalationEmail) addNotification(`CRITICAL ESCALATION: Routed to ${dObj.escalationEmail}`)
     else setMessage('Ticket escalated to superior.')
   }
 
+  // ─── Matrix Config Save (Supabase) ────────────────────────────────────────
+  const handleSaveMatrix = async (m) => {
+    setRoleMatrix(m)
+    await saveRoleMatrix(m)
+  }
+
+  const handleSaveCustomItems = async (items) => {
+    setCustomItems(items)
+    await updateConfig('custom_items', items)
+  }
+
+  const handleSaveDepartmentEmails = async (emails) => {
+    setDepartmentEmails(emails)
+    await updateConfig('department_emails', emails)
+  }
+
+  // ─── Derived State ────────────────────────────────────────────────────────
   const departmentTickets = useMemo(() => {
     const dept = departments.find(d => d.id === departmentId)
     if (!dept) return []
@@ -301,6 +415,7 @@ export default function App() {
 
   const searchRef = <input value={searchQuery} onChange={e => { setSearchQuery(e.target.value); setCurrentPage(1) }} placeholder="Search tickets..." className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
 
+  // ─── Admin Dashboard ──────────────────────────────────────────────────────
   const renderAdminDashboard = () => {
     const p = paginate(adminTickets)
     return (
@@ -356,7 +471,7 @@ export default function App() {
   const renderAdminMatrix = () => (
     <div className="grid gap-6">
       <DepartmentSettings departments={departments} onSave={saveDepartment} onRemove={removeDepartment} />
-      <AdvancedMatrixSettings onSave={m => setRoleMatrix(m)} />
+      <AdvancedMatrixSettings onSave={handleSaveMatrix} initialMatrix={roleMatrix} initialCustomItems={customItems} initialDepartmentEmails={departmentEmails} onSaveCustomItems={handleSaveCustomItems} onSaveDepartmentEmails={handleSaveDepartmentEmails} />
     </div>
   )
 
@@ -691,10 +806,16 @@ export default function App() {
           </button>
         </div>
       </aside>
-
       <main className="flex-1 ml-64 p-6 min-h-screen">
         <ToastList list={notifications} onRemove={id => setNotifications(c => c.filter(t => t.id !== id))} />
-        {renderContent()}
+        {loading ? (
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <div className="inline-block w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+              <p className="mt-3 text-sm text-slate-500 font-semibold">Loading from cloud database...</p>
+            </div>
+          </div>
+        ) : renderContent()}
       </main>
     </div>
   )
