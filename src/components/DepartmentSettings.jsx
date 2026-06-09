@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 
 export default function DepartmentSettings({ departments, onSave, onRemove }) {
   const [name, setName] = useState('')
+  const [matrixKey, setMatrixKey] = useState('')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [primaryEmail, setPrimaryEmail] = useState('')
@@ -15,8 +16,9 @@ export default function DepartmentSettings({ departments, onSave, onRemove }) {
       return
     }
     setError('')
-    onSave({ name: name.trim(), username: username.trim(), password: password.trim(), primaryEmail: primaryEmail.trim(), escalationEmail: escalationEmail.trim() })
+    onSave({ name: name.trim(), matrixKey: matrixKey.trim() || name.trim(), username: username.trim(), password: password.trim(), primaryEmail: primaryEmail.trim(), escalationEmail: escalationEmail.trim() })
     setName('')
+    setMatrixKey('')
     setUsername('')
     setPassword('')
     setPrimaryEmail('')
@@ -36,7 +38,12 @@ export default function DepartmentSettings({ departments, onSave, onRemove }) {
       <form onSubmit={handleSubmit} className="mt-6 grid gap-4 sm:grid-cols-3">
         <label className="space-y-2 text-sm text-slate-700">
           Department Name
-          <input value={name} onChange={(e) => setName(e.target.value)} className="w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900" placeholder="HRBP, Compliance, Finance" />
+          <input value={name} onChange={(e) => setName(e.target.value)} className="w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900" placeholder="Information Technology" />
+        </label>
+        <label className="space-y-2 text-sm text-slate-700">
+          Matrix Key
+          <input value={matrixKey} onChange={(e) => setMatrixKey(e.target.value)} className="w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900" placeholder="IT, Admin, Payroll (must match matrix)" />
+          <span className="text-xs text-slate-400">Must match the name in Grade Matrix Mapping exactly (e.g. IT, Admin).</span>
         </label>
         <label className="space-y-2 text-sm text-slate-700">
           Username
@@ -70,6 +77,7 @@ export default function DepartmentSettings({ departments, onSave, onRemove }) {
               <div key={dept.id} className="flex flex-col gap-2 rounded-3xl border border-slate-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <div className="font-semibold text-slate-900">{dept.name}</div>
+                  <div className="text-sm text-slate-500">matrix key: {dept.matrixKey || dept.name}</div>
                   <div className="text-sm text-slate-500">username: {dept.username}</div>
                   <div className="text-sm text-slate-500">primary: {dept.primaryEmail || '—'}</div>
                   <div className="text-sm text-slate-500">escalation: {dept.escalationEmail || '—'}</div>
