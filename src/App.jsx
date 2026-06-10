@@ -278,7 +278,7 @@ export default function App() {
 
       const pOk = await insertParentTicket(parent)
       const cOk = await insertChildTicketsBulk(children)
-      if (pOk && cOk) {
+      if (pOk.success && cOk.success) {
         setTickets(prev => [parent, ...prev])
         setChildTickets(prev => [...children, ...prev])
         children.forEach(child => {
@@ -286,15 +286,17 @@ export default function App() {
           addNotification(`Email sent to ${dObj?.primaryEmail || child.department}: Ticket ${child.id} raised`)
         })
       } else {
-        setError('Failed to save ticket to cloud.'); return
+        const errMsg = pOk.error ? (pOk.error.message || JSON.stringify(pOk.error)) : cOk.error ? (cOk.error.message || JSON.stringify(cOk.error)) : 'Unknown error'
+        setError('Failed: ' + errMsg); return
       }
     } else {
       const newTicket = { id: baseId, title: title.trim(), category, description: description.trim(), status: 'Open', createdAt: now, createdBy: 'employee', type: 'single' }
-      const ok = await insertParentTicket(newTicket)
-      if (ok) {
+      const result = await insertParentTicket(newTicket)
+      if (result.success) {
         setTickets(prev => [newTicket, ...prev])
       } else {
-        setError('Failed to save ticket to cloud.'); return
+        const errMsg = result.error ? (result.error.message || JSON.stringify(result.error)) : 'Unknown error'
+        setError('Failed: ' + errMsg); return
       }
     }
     setTitle(''); setCategory('IT'); setDescription(''); setSelectedGrade(''); setError(''); setMessage('Ticket submitted successfully.')

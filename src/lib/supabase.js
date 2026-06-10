@@ -12,13 +12,14 @@ function parentDbToApp(row) {
   return {
     id: row.id,
     title: row.title,
-    category: 'Onboarding',
+    category: row.category || 'Onboarding',
     description: row.description || '',
-    status: row.total_status,
+    status: row.status,
     createdAt: row.created_at,
     createdBy: row.created_by || 'employee',
     type: 'parent',
-    grade: row.grade || '',
+    grade: row.grade_name || '',
+    employeeName: row.employee_name || '',
     children: row.children || [],
     auditTrail: row.audit_trail || [],
   }
@@ -65,9 +66,11 @@ function parentAppToDb(ticket) {
   return {
     id: ticket.id,
     title: ticket.title,
+    category: ticket.category || 'Onboarding',
     description: ticket.description || '',
-    total_status: ticket.status,
-    grade: ticket.grade || '',
+    status: ticket.status,
+    employee_name: ticket.employeeName || '',
+    grade_name: ticket.grade || '',
     created_by: ticket.createdBy || 'employee',
     children: ticket.children || [],
     audit_trail: ticket.auditTrail || [],
@@ -108,8 +111,8 @@ export async function insertParentTicket(ticket) {
   const { error } = await supabase
     .from('hr_parent_tickets')
     .insert(parentAppToDb(ticket))
-  if (error) { console.error('insertParentTicket:', error); return false }
-  return true
+  if (error) { console.error('insertParentTicket:', error); return { error } }
+  return { success: true }
 }
 
 export async function updateParentStatus(id, status, auditEntry) {
@@ -123,7 +126,7 @@ export async function updateParentStatus(id, status, auditEntry) {
   const updatedTrail = [...(existing?.audit_trail || []), auditEntry]
   const { error } = await supabase
     .from('hr_parent_tickets')
-    .update({ total_status: status, audit_trail: updatedTrail })
+    .update({ status, audit_trail: updatedTrail })
     .eq('id', id)
   if (error) { console.error('updateParentStatus:', error); return false }
   return true
@@ -162,8 +165,8 @@ export async function insertChildTicketsBulk(tickets) {
   const { error } = await supabase
     .from('hr_child_tickets')
     .insert(rows)
-  if (error) { console.error('insertChildTicketsBulk:', error); return false }
-  return true
+  if (error) { console.error('insertChildTicketsBulk:', error); return { error } }
+  return { success: true }
 }
 
 export async function updateChildStatus(id, status, auditEntry) {
