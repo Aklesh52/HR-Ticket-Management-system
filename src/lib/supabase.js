@@ -9,6 +9,9 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 function parentDbToApp(row) {
   if (!row) return row
+  let auditTrail = row.audit_trail || []
+  if (typeof auditTrail === 'string') { try { auditTrail = JSON.parse(auditTrail) } catch { auditTrail = [] } }
+  if (!Array.isArray(auditTrail)) auditTrail = []
   return {
     id: row.id,
     title: row.title,
@@ -21,7 +24,7 @@ function parentDbToApp(row) {
     grade: row.grade_name || '',
     employeeName: row.employee_name || '',
     children: row.children || [],
-    auditTrail: row.audit_trail || [],
+    auditTrail,
   }
 }
 
@@ -123,7 +126,10 @@ export async function updateParentStatus(id, status, auditEntry) {
     .single()
   if (fetchErr) { console.error('updateParentStatus fetch:', fetchErr); return false }
 
-  const updatedTrail = [...(existing?.audit_trail || []), auditEntry]
+  let trail = existing?.audit_trail || []
+  if (typeof trail === 'string') { try { trail = JSON.parse(trail) } catch { trail = [] } }
+  if (!Array.isArray(trail)) trail = []
+  const updatedTrail = [...trail, auditEntry]
   const { error } = await supabase
     .from('hr_parent_tickets')
     .update({ status, audit_trail: updatedTrail })

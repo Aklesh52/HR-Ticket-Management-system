@@ -15,9 +15,14 @@ const CATEGORY_COLORS = [
 ]
 
 function getResolvedDate(ticket) {
-  if (!ticket.auditTrail) return null
-  const entry = [...ticket.auditTrail].reverse().find(e => e.action === 'Resolved' || e.action === 'Done')
-  return entry ? entry.time : null
+  let trail = ticket.auditTrail
+  if (typeof trail === 'string') { try { trail = JSON.parse(trail) } catch { trail = [] } }
+  if (!Array.isArray(trail) || trail.length === 0) return null
+  const entry = [...trail].reverse().find(e => e.action === 'Resolved' || e.action === 'Done')
+  if (entry) return entry.time
+  const isClosed = ['Resolved', 'Done'].includes(ticket.status)
+  if (isClosed && trail.length > 0) return trail[trail.length - 1].time
+  return null
 }
 
 function calcDuration(created, resolved) {
