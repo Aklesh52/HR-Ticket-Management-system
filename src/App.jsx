@@ -4,6 +4,7 @@ import Reports from './components/Reports'
 import DepartmentSettings from './components/DepartmentSettings'
 import ToastList from './components/ToastList'
 import AdvancedMatrixSettings from './components/AdvancedMatrixSettings'
+import TicketReports from './components/TicketReports'
 import { ROLE_MATRIX } from './config/roleMatrix'
 import {
   fetchParentTickets, insertParentTicket, insertChildTicketsBulk,
@@ -401,8 +402,8 @@ export default function App() {
 
   const sidebarNav = useMemo(() => {
     if (role === 'admin') return [{ id: 'dashboard', label: 'Dashboard', icon: 'dashboard' }, { id: 'matrix', label: 'Dynamic Matrix Grid', icon: 'matrix' }, { id: 'departments', label: 'Department Settings', icon: 'departments' }, { id: 'reports', label: 'Advanced Reports', icon: 'reports' }]
-    if (role === 'department') return [{ id: 'dashboard', label: 'Received Metrics', icon: 'dashboard' }, { id: 'pending', label: 'Pending Tickets', icon: 'pending' }, { id: 'data-gaps', label: 'Data Gap Reports', icon: 'reports' }]
-    if (role === 'employee') return [{ id: 'new-ticket', label: 'Raise Ticket', icon: 'newticket' }, { id: 'timeline', label: 'Live Progress Tracker', icon: 'timeline' }, { id: 'history', label: 'Personal History', icon: 'history' }]
+    if (role === 'department') return [{ id: 'dashboard', label: 'Received Metrics', icon: 'dashboard' }, { id: 'pending', label: 'Pending Tickets', icon: 'pending' }, { id: 'reports', label: 'Reports', icon: 'reports' }, { id: 'data-gaps', label: 'Data Gap Reports', icon: 'reports' }]
+    if (role === 'employee') return [{ id: 'new-ticket', label: 'Raise Ticket', icon: 'newticket' }, { id: 'timeline', label: 'Live Progress Tracker', icon: 'timeline' }, { id: 'reports', label: 'Reports', icon: 'reports' }, { id: 'history', label: 'Personal History', icon: 'history' }]
     return []
   }, [role])
 
@@ -709,11 +710,13 @@ export default function App() {
     if (role === 'department') {
       if (activeView === 'dashboard') return renderDeptDashboard()
       if (activeView === 'pending') return <><div className="mb-2 flex items-center gap-3">{searchRef}</div>{renderDeptTicketList(deptPending, 'No pending tickets.')}</>
+      if (activeView === 'reports') return <><div className="mb-4"><h2 className="text-xl font-bold text-slate-900">Reports</h2><p className="text-sm text-slate-500">Status-wise and category-wise reports with date range filtering.</p></div><TicketReports tickets={departmentTickets} title="Department Reports" subtitle="View status and category breakdowns for your department tickets." /></>
       if (activeView === 'data-gaps') return <><div className="mb-4"><h2 className="text-xl font-bold text-slate-900">Data Gap Reports</h2><p className="text-sm text-slate-500">Identify tickets with missing remarks, incomplete items, or approaching deadlines.</p></div>{renderDeptDataGaps()}</>
     }
     if (role === 'employee') {
       if (activeView === 'new-ticket') return renderEmployeeNewTicket()
       if (activeView === 'timeline') return <><div className="mb-4"><h2 className="text-xl font-bold text-slate-900">Live Progress Timeline Tracker</h2><p className="text-sm text-slate-500">Click a ticket to see which departments have completed their tasks and which are still pending.</p></div>{renderEmployeeTimeline()}</>
+      if (activeView === 'reports') return <><div className="mb-4"><h2 className="text-xl font-bold text-slate-900">Reports</h2><p className="text-sm text-slate-500">Status-wise and category-wise reports with date range filtering.</p></div><TicketReports tickets={employeeTickets} title="My Ticket Reports" subtitle="View status and category breakdowns for your submitted tickets." /></>
       if (activeView === 'history') return <><div className="mb-4"><h2 className="text-xl font-bold text-slate-900">Personal History</h2><p className="text-sm text-slate-500">View all your submitted tickets and track their progress across departments.</p></div>{renderEmployeeHistory()}</>
     }
     return null
