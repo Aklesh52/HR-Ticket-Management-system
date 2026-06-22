@@ -401,7 +401,7 @@ export default function App() {
   }
 
   const sidebarNav = useMemo(() => {
-    if (role === 'admin') return [{ id: 'dashboard', label: 'Dashboard', icon: 'dashboard' }, { id: 'matrix', label: 'Dynamic Matrix Grid', icon: 'matrix' }, { id: 'departments', label: 'Department Settings', icon: 'departments' }, { id: 'reports', label: 'Advanced Reports', icon: 'reports' }]
+    if (role === 'admin') return [{ id: 'dashboard', label: 'Dashboard', icon: 'dashboard' }, { id: 'matrix', label: 'Dynamic Matrix Grid', icon: 'matrix' }, { id: 'departments', label: 'Department Settings', icon: 'departments' }, { id: 'reports', label: 'Advanced Reports', icon: 'reports' }, { id: 'detailed-reports', label: 'Detailed Reports', icon: 'reports' }]
     if (role === 'department') return [{ id: 'dashboard', label: 'Received Metrics', icon: 'dashboard' }, { id: 'pending', label: 'Pending Tickets', icon: 'pending' }, { id: 'reports', label: 'Reports', icon: 'reports' }, { id: 'data-gaps', label: 'Data Gap Reports', icon: 'reports' }]
     if (role === 'employee') return [{ id: 'new-ticket', label: 'Raise Ticket', icon: 'newticket' }, { id: 'timeline', label: 'Live Progress Tracker', icon: 'timeline' }, { id: 'reports', label: 'Reports', icon: 'reports' }, { id: 'history', label: 'Personal History', icon: 'history' }]
     return []
@@ -706,6 +706,7 @@ export default function App() {
       if (activeView === 'matrix') return <><div className="mb-4"><h2 className="text-xl font-bold text-slate-900">Dynamic Matrix Grid</h2><p className="text-sm text-slate-500">Configure departments, grades, and onboarding items.</p></div>{renderAdminMatrix()}</>
       if (activeView === 'departments') return <><div className="mb-4"><h2 className="text-xl font-bold text-slate-900">Department Settings</h2><p className="text-sm text-slate-500">Onboard and manage departments with login credentials and edit configurations.</p></div>{renderAdminDepartments()}</>
       if (activeView === 'reports') return <><div className="mb-4"><h2 className="text-xl font-bold text-slate-900">Advanced Reports</h2><p className="text-sm text-slate-500">Export data, view SLA breaches, and analyze ticket distribution.</p></div><Reports tickets={tickets} childTickets={childTickets} departments={departments} getNow={getNow} /></>
+      if (activeView === 'detailed-reports') return <><div className="mb-4"><h2 className="text-xl font-bold text-slate-900">Detailed Reports</h2><p className="text-sm text-slate-500">Status-wise, category-wise breakdowns with created date, resolved date, and resolution time.</p></div><TicketReports tickets={tickets} title="All Tickets Report" subtitle="Detailed reporting for all tickets across the system." />
     }
     if (role === 'department') {
       if (activeView === 'dashboard') return renderDeptDashboard()
