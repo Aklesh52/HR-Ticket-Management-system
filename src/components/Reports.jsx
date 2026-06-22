@@ -58,8 +58,8 @@ export default function Reports({ tickets, childTickets, departments, getNow }) 
     ]
 
     filtered.forEach(t => {
-      const resolvedAt = getAuditTimestamp(t.auditTrail, ['Resolved', 'Done'])
-      const closedAt = getAuditTimestamp(t.auditTrail, ['Rejected', 'Resolved', 'Done'])
+      const resolvedAt = t.resolvedAt || getAuditTimestamp(t.auditTrail, ['Resolved', 'Done'])
+      const closedAt = t.closedAt || getAuditTimestamp(t.auditTrail, ['Rejected', 'Resolved', 'Done'])
       csvRows.push([
         `"${t.id || ''}"`,
         `"${(t.title || '').replace(/"/g, '""')}"`,

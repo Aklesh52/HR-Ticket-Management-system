@@ -19,6 +19,8 @@ function parentDbToApp(row) {
     description: row.description || '',
     status: row.status,
     createdAt: row.created_at,
+    resolvedAt: row.resolved_at || null,
+    closedAt: row.closed_at || null,
     createdBy: row.created_by || 'employee',
     type: 'parent',
     grade: row.grade_name || '',
