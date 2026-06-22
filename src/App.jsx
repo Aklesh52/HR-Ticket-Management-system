@@ -25,14 +25,27 @@ const PAGE_SIZE = 10
 
 function CollapsibleTicket({ ticket, isClosed, children }) {
   const [open, setOpen] = useState(!isClosed)
+  if (!isClosed) return children
   return (
-    <div>
-      {isClosed && (
-        <button type="button" onClick={() => setOpen(!open)} className="mb-2 text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition">
-          {open ? '▾ Collapse' : '▸ Expand'} — {ticket.title}
-        </button>
-      )}
-      {(open || !isClosed) && children}
+    <div className={`rounded-2xl border transition-all duration-200 ${open ? 'border-indigo-200 bg-indigo-50/30 shadow-sm' : 'border-slate-200 bg-white hover:border-indigo-200 hover:shadow-sm'}`}>
+      <button type="button" onClick={() => setOpen(!open)}
+        className="w-full flex items-center gap-3 px-5 py-4 text-left">
+        <span className={`flex items-center justify-center w-7 h-7 rounded-lg text-xs font-bold transition-all duration-200 ${open ? 'bg-indigo-600 text-white rotate-90' : 'bg-slate-100 text-slate-500'}`}>
+          ▸
+        </span>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-bold text-slate-900 truncate">{ticket.title}</p>
+          <div className="flex items-center gap-2 mt-0.5">
+            {ticket.category && <span className="text-[10px] font-semibold text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded-full">{ticket.category}</span>}
+            {ticket.status && <span className="text-[10px] font-semibold text-slate-500">{ticket.status}</span>}
+            {ticket.createdAt && <span className="text-[10px] text-slate-400">{new Date(ticket.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>}
+          </div>
+        </div>
+        <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${open ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
+          {open ? 'Collapse' : 'Expand'}
+        </span>
+      </button>
+      {open && <div className="px-5 pb-5 border-t border-indigo-100">{children}</div>}
     </div>
   )
 }

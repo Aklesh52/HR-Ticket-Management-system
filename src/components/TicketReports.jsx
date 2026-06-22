@@ -33,7 +33,16 @@ function calcDuration(created, resolved) {
 
 function fmtDate(iso) {
   if (!iso) return '—'
-  return new Date(iso).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+  const d = new Date(iso)
+  const day = String(d.getDate()).padStart(2, '0')
+  const mon = d.toLocaleString('en-IN', { month: 'short' })
+  const yr = d.getFullYear()
+  const hr = d.getHours()
+  const min = String(d.getMinutes()).padStart(2, '0')
+  const sec = String(d.getSeconds()).padStart(2, '0')
+  const ampm = hr >= 12 ? 'PM' : 'AM'
+  const hr12 = hr % 12 || 12
+  return `${day} ${mon} ${yr}, ${String(hr12).padStart(2, '0')}:${min}:${sec} ${ampm}`
 }
 
 export default function TicketReports({ tickets, title, subtitle }) {
